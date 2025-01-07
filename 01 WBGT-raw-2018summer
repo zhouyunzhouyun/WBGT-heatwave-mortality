@@ -1,0 +1,150 @@
+var collection = ee.ImageCollection('projects/starlit-vim-392703/assets/WBGT');
+ 
+// 函数：从图像中减去273.15 
+var subtractValue = function(image) {
+  return image.subtract(ee.Image(273.15)).copyProperties(image, image.propertyNames());
+};
+
+// 函数：从图像ID中提取日期并转换为日期格式
+var extractDateFromID = function(image) {
+  // 提取Image的ID
+  var id = ee.String(image.get('system:index'));
+
+  // 从ID中提取日期信息
+  var dateStr = id.slice(9); // 提取“WBGT_max_”后的部分
+
+  // 将日期字符串转换为日期格式
+  var date = ee.Date.parse('yyyyMMdd', dateStr);
+
+  // 使用日期设置新的 date 属性和 system:time_start 属性
+  return image.set({
+    'date': date.format('yyyyMMdd'),
+    'system:time_start': date.millis()
+  });
+};
+
+//********************************************last3060********************
+
+// 使用映射函数从ID中提取日期信息
+var addDateProperty = function(image) {
+  var id = image.id();
+  var dateStr = id.slice(9);  // 提取日期部分，例如“19800501”
+  return image.set('ID_date', dateStr);
+};
+
+var withDate = collection.map(addDateProperty);
+
+// 根据日期属性进行排序
+var sortedCollection = withDate.sort('ID_date', false);
+
+// 选取前100个图像（即原始集合中的最后100个）
+var last3060 = sortedCollection.limit(3060).map(subtractValue).map(extractDateFromID);
+
+print("last3060",last3060);
+
+var checkBands = last3060.select("b1").first();
+print(checkBands.bandNames(), 'Band names after selecting b1');
+
+var i = 2018
+var stryear  = i.toString();
+var startEHF = stryear.concat('-05-01');
+var startEHF = ee.Date(startEHF); 
+var endEHF   = startEHF.advance(5,'month');
+    
+// var EHF_Dataset = EHF_Dataset.filterDate(startEHF,endEHF);
+ 
+
+var WBGT_2018_summer = last3060.select("b1").filterDate(startEHF,endEHF).mean()    
+
+print(WBGT_2018_summer, 'WBGT_2018_summer');
+
+  function export_img(img,task,folder){
+      Export.image.toDrive({
+            image : img,
+            description: task,
+            folder: folder,
+            //range: [-0.125, -90.125, 179.875, 90.125],
+            //dimensions:"1440x721",
+            crs:"EPSG:4326",
+            scale: 27830,
+            // region:geometry.bounds(),
+            //crsTransform: [0.25, 0, -180, 0, -0.25, 89.875],
+            maxPixels: 1e13
+      });
+  }
+  
+
+var outstr = 'WBGT';
+export_img(WBGT_2018_summer, 'WBGT_2018_summer_mean', outstr);
+
+//============================================================================
+// 定义起始年份和结束年份
+var startYear = 2018;
+var endYear = 2018;
+
+// 定义几何区域
+var geometry = ee.FeatureCollection("users/yunswu/studyarea/CHN_province").geometry(); 
+
+// 定义一个函数来处理每年的数据
+function processYear(year) {
+  var startDate = ee.Date.fromYMD(year, 5, 1);
+  var endDate = ee.Date.fromYMD(year, 10, 1);
+
+  function dailyMinMaxTemperature(date) {
+    date = ee.Date(date);
+    var nextDate = date.advance(1, 'day');
+    var filtered = ee.ImageCollection("ECMWF/ERA5_LAND/HOURLY")
+                    .select('temperature_2m')
+                    .filterBounds(geometry)
+                    .filterDate(date, nextDate);
+
+    var toCelsius = function(image) {
+      return image.subtract(273.15).copyProperties(image, ['system:time_start']);
+    };
+
+    var celsius = filtered.map(toCelsius);
+    var dailyMaxTemp = celsius.reduce(ee.Reducer.max()).rename('temperature_2m_max');
+    var dailyMinTemp = celsius.reduce(ee.Reducer.min()).rename('temperature_2m_min');
+
+    return dailyMaxTemp.addBands(dailyMinTemp).set('system:time_start', date);
+  }
+
+  var daysDifference = endDate.difference(startDate, 'days');
+  var dateSequence = ee.List.sequence(0, daysDifference.subtract(1)).map(function(day) {
+    return startDate.advance(day, 'day');
+  });
+
+  return ee.ImageCollection.fromImages(dateSequence.map(dailyMinMaxTemperature));
+}
+
+var yearSequence = ee.List.sequence(startYear, endYear);
+var yearlyDailyMinMaxTemps = ee.ImageCollection(yearSequence.iterate(function(year, prev) {
+  return ee.ImageCollection(prev).merge(processYear(year));
+}, ee.ImageCollection([])));
+
+print("yearlyDailyMinMaxTemps", yearlyDailyMinMaxTemps);
+
+var era5Land_2018_summer = yearlyDailyMinMaxTemps.select('temperature_2m_max')
+                            .filterBounds(geometry)
+                            .filterDate('2018-05-01', '2018-10-01').mean();
+
+print(era5Land_2018_summer, 'Era5Land_2018_summer');
+
+
+export_img_11132(era5Land_2018_summer, 'ERA5Land_2018_summer_mean', outstr);
+
+  function export_img_11132(img,task,folder){
+      Export.image.toDrive({
+            image : img,
+            description: task,
+            folder: folder,
+            //range: [-0.125, -90.125, 179.875, 90.125],
+            //dimensions:"1440x721",
+            crs:"EPSG:4326",
+            scale: 11132,
+            // region:geometry.bounds(),
+            //crsTransform: [0.25, 0, -180, 0, -0.25, 89.875],
+            maxPixels: 1e13
+      });
+  }
+  
