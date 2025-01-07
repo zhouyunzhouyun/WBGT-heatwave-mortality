@@ -1,0 +1,62 @@
+
+// 读取中国分省without Taiwan Honkong Macao矢量数据
+var provinces = ee.FeatureCollection('users/yunswu/studyarea/China_withoutGAT');
+
+// var variable = "HWF"
+// var variable = "age_pop"
+var variable = "pop_exposure"
+
+// 定义一个函数，用于计算给定图层在给定区域内的像元总数
+var countPixels = function(image, geometry) {
+  var count = ee.Number(image.reduceRegion({
+    reducer: ee.Reducer.sum(), // *** mean or sum ???? ***
+    geometry: geometry,
+    scale: 27830, // 设置分辨率
+    maxPixels: 1e13,
+    tileScale: 4 // 加快处理速度
+  }).get(variable));
+  return count;
+};
+
+
+// 定义一个包含所有年份的列表
+// var years = ee.List.sequence(2001, 2020).getInfo();
+var yearStart = 2000;
+var yearEnd = 2019;
+
+// 创建一个空的 ImageCollection
+var ic = ee.FeatureCollection([]);
+
+// 遍历所有年份
+for (var year = yearStart; year <= yearEnd; year++) {
+
+
+// 对每个年份和省份进行分组，计算人口暴露数量
+    var imageId = 'projects/starlit-vim-392703/assets/WBGT_pop_exposure/Pop_exposure_' + year
+    var yearImage = ee.Image(imageId)
+      // print("yearImage",yearImage)
+      // var yearImage = ee.Image('users/yunswu/CN_age_pop_exposure'+ '/' + 'CN_age_pop_exposure_' + year.toString());
+    var exposureByProvince = provinces.map(function(feature) {
+        var provinceName = feature.get('Name');
+        var geometry = feature.geometry();
+        var populationCount = countPixels(yearImage, geometry);
+        return ee.Feature(null, {
+          Year: year,
+          Province: provinceName,
+          Aging_Population_Exposure: populationCount
+        });
+       return exposureByProvince;   
+      });
+    ic = ic.merge(exposureByProvince)
+}
+
+// print('IC',ic)
+// 导出结果
+Export.table.toDrive({
+  collection: ic,
+  folder:"exposure",
+  description: 'New_exposure_by_year_and_province_sum_'+variable,
+  fileFormat: 'CSV'
+});
+
+
