@@ -1,2 +1,5 @@
+Assessing Human-perceived Heatwaves Exposure in China Using Wet Bulb Globe Temperature
+
+
 Despite growing attention to heat-related exposure risks, important gaps remain in the literature. Many studies rely on air temperature alone or adopt simplified thermal indices, which can underestimate human-perceived heat stress by neglecting humidity, wind and radiative loading. To address these limitations, we (1) generate a daily, China-wide WBGT dataset for the warm season (May 1-September 30) over 1980-2019 and disentangle the contributions of key meteorological drivers to spatiotemporal variability in WBGT; (2) identify WBGT-based heatwave events and quantify long-term changes in their frequency, duration and intensity; and (3) evaluate spatiotemporal trends in heatwave population exposure while decomposing its driving factors. Together, these advances strengthen empirical understanding of population exposure to heatwaves and provide a more robust evidence base for climate-adaptive strategies.
 
